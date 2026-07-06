@@ -7,3 +7,4 @@ twilio
 supabase
 apscheduler
 firebase-admin
+python-multipart

@@ -199,6 +199,46 @@ def get_plot_for_farmer(farmer_id: str) -> list[dict]:
         return []
 
 
+def create_plot(farmer_id: str, lat: float, lng: float, crop_current: str, soil_data_ref: str) -> dict | None:
+    """
+    Create a new plot document in Firestore for a farmer.
+
+    Args:
+        farmer_id: Document ID of the farmer owning the plot.
+        lat: Latitude of the plot.
+        lng: Longitude of the plot.
+        crop_current: Current crop sown (e.g. "Rice", "None").
+        soil_data_ref: Reference to the soil data history or village default.
+
+    Returns:
+        A dictionary containing the created plot details including its generated 'id',
+        or None if an error occurs.
+    """
+    try:
+        if db is None:
+            logger.error("Firestore db client is not initialized.")
+            return None
+
+        plots_ref = db.collection("plots")
+        new_doc_ref = plots_ref.document()
+        
+        data = {
+            "farmer_id": farmer_id,
+            "lat": lat,
+            "lng": lng,
+            "crop_current": crop_current,
+            "soil_data_ref": soil_data_ref,
+            "created_at": firestore.SERVER_TIMESTAMP
+        }
+        
+        new_doc_ref.set(data)
+        data["id"] = new_doc_ref.id
+        return data
+    except Exception as e:
+        logger.error(f"Firestore error in create_plot for farmer {farmer_id}: {e}", exc_info=True)
+        return None
+
+
 def get_all_plots() -> list[dict]:
     """
     Retrieve all plots currently registered in the database.
@@ -366,3 +406,93 @@ def resolve_escalation(id: str, status: str, officer_note: str, final_message: s
     except Exception as e:
         logger.error(f"Firestore error in resolve_escalation for {id}: {e}", exc_info=True)
         return False
+
+
+def get_plot_by_id(plot_id: str) -> dict | None:
+    """
+    Retrieve a single plot document by its Firestore document ID.
+
+    Args:
+        plot_id: The document ID of the plot.
+
+    Returns:
+        A dictionary containing the plot data including 'id',
+        or None if not found or if an error occurs.
+    """
+    try:
+        if db is None:
+            logger.error("Firestore db client is not initialized.")
+            return None
+
+        doc_ref = db.collection("plots").document(plot_id)
+        doc = doc_ref.get()
+
+        if doc.exists:
+            data = doc.to_dict()
+            data["id"] = doc.id
+            return data
+
+        return None
+    except Exception as e:
+        logger.error(f"Firestore error in get_plot_by_id for {plot_id}: {e}", exc_info=True)
+        return None
+
+
+def get_farmer_by_id(farmer_id: str) -> dict | None:
+    """
+    Retrieve a single farmer document by its Firestore document ID.
+
+    Args:
+        farmer_id: The document ID of the farmer.
+
+    Returns:
+        A dictionary containing the farmer data including 'id',
+        or None if not found or if an error occurs.
+    """
+    try:
+        if db is None:
+            logger.error("Firestore db client is not initialized.")
+            return None
+
+        doc_ref = db.collection("farmers").document(farmer_id)
+        doc = doc_ref.get()
+
+        if doc.exists:
+            data = doc.to_dict()
+            data["id"] = doc.id
+            return data
+
+        return None
+    except Exception as e:
+        logger.error(f"Firestore error in get_farmer_by_id for {farmer_id}: {e}", exc_info=True)
+        return None
+
+
+def get_escalation_by_id(escalation_id: str) -> dict | None:
+    """
+    Retrieve a single escalation document by its Firestore document ID.
+
+    Args:
+        escalation_id: The document ID of the escalation.
+
+    Returns:
+        A dictionary containing the escalation data including 'id',
+        or None if not found or if an error occurs.
+    """
+    try:
+        if db is None:
+            logger.error("Firestore db client is not initialized.")
+            return None
+
+        doc_ref = db.collection("escalations").document(escalation_id)
+        doc = doc_ref.get()
+
+        if doc.exists:
+            data = doc.to_dict()
+            data["id"] = doc.id
+            return data
+
+        return None
+    except Exception as e:
+        logger.error(f"Firestore error in get_escalation_by_id for {escalation_id}: {e}", exc_info=True)
+        return None
