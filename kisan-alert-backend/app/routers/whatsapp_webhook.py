@@ -27,10 +27,26 @@ def format_recommendation_message(rec: dict, language: str) -> str:
     Format the JSON recommendation dictionary into a friendly WhatsApp message.
     """
     if not rec:
-        return "Sorry, I could not generate any agricultural advice at this moment. Please try again later."
+        no_advice_messages = {
+            "te": "క్షమించండి, ప్రస్తుతం పంట సలహా తయారు చేయలేకపోతున్నాము. దయచేసి తర్వాత మళ్ళీ ప్రయత్నించండి.",
+            "hi": "क्षमा करें, इस समय फसल सलाह तैयार नहीं हो पा रही। कृपया बाद में पुनः प्रयास करें।",
+            "en": "Sorry, I could not generate any agricultural advice at this moment. Please try again later.",
+        }
+        lang_key = (language.lower() if language else "te")
+        if lang_key not in no_advice_messages:
+            lang_key = "te"
+        return no_advice_messages.get(lang_key, no_advice_messages["en"])
         
     if "error" in rec:
-        return f"Error generating advice: {rec['error']}"
+        error_messages = {
+            "te": "పంట సలహా సేవలో సమస్య ఏర్పడింది. దయచేసి కొద్దిసేపట్లో మళ్ళీ ప్రయత్నించండి.",
+            "hi": "फसल सलाह सेवा में समस्या आई। कृपया कुछ देर बाद पुनः प्रयास करें।",
+            "en": "There was an issue with the crop advisory service. Please try again shortly.",
+        }
+        lang_key = (language.lower() if language else "te")
+        if lang_key not in error_messages:
+            lang_key = "te"
+        return error_messages.get(lang_key, error_messages["en"])
 
     # Default to "te" (Telugu) if not supported
     lang = language.lower() if language else "te"
@@ -132,7 +148,13 @@ async def generate_and_send_advisory(farmer_id: str, village_id: str, language: 
             )
             if not plot:
                 logger.error("Failed to generate default plot.")
-                send_whatsapp_message(to_phone=to_phone, body="Unable to register a farm plot. Please try again later.")
+                plot_error_messages = {
+                    "te": "ఫారం ప్లాట్ నమోదు చేయడంలో సమస్య. దయచేసి తర్వాత మళ్ళీ ప్రయత్నించండి.",
+                    "hi": "खेत का प्लॉट पंजीकृत करने में समस्या। कृपया बाद में पुनः प्रयास करें।",
+                    "en": "Unable to register a farm plot. Please try again later.",
+                }
+                _lang = (language.lower() if language else "te")
+                send_whatsapp_message(to_phone=to_phone, body=plot_error_messages.get(_lang, plot_error_messages["en"]))
                 return
         else:
             plot = plots[0]
@@ -164,7 +186,13 @@ async def generate_and_send_advisory(farmer_id: str, village_id: str, language: 
 
     except Exception as e:
         logger.error(f"Failed to generate and send advisory: {e}", exc_info=True)
-        send_whatsapp_message(to_phone=to_phone, body="We encountered an issue generating your crop advisory. Please try again shortly.")
+        advisory_error_messages = {
+            "te": "మీ పంట సలహా తయారు చేయడంలో సమస్య వచ్చింది. దయచేసి కొద్దిసేపట్లో మళ్ళీ ప్రయత్నించండి.",
+            "hi": "आपकी फसल सलाह तैयार करने में समस्या आई। कृपया कुछ देर बाद पुनः प्रयास करें।",
+            "en": "We encountered an issue generating your crop advisory. Please try again shortly.",
+        }
+        _lang = (language.lower() if language else "te")
+        send_whatsapp_message(to_phone=to_phone, body=advisory_error_messages.get(_lang, advisory_error_messages["en"]))
 
 
 @router.post("/webhook/whatsapp")
@@ -207,9 +235,14 @@ async def whatsapp_webhook(request: Request):
 
             if not farmer:
                 logger.warning("Received image from unknown farmer %s — cannot create escalation.", phone_number)
+                register_first_messages = {
+                    "te": "దయచేసి ముందు టెక్స్ట్ మెసేజ్ పంపి రిజిస్టర్ అవ్వండి, ఆ తర్వాత మీ పంట ఫోటో పంపండి.",
+                    "hi": "कृपया पहले एक टेक्स्ट मैसेज भेजकर रजिस्टर करें, फिर अपनी फसल की फोटो भेजें।",
+                    "en": "Please send a text message first to register, then send your crop photo.",
+                }
                 send_whatsapp_message(
                     to_phone=from_phone_raw,
-                    body="Please send a text message first to register, then send your crop photo.",
+                    body=register_first_messages.get("te", register_first_messages["en"]),
                 )
                 return Response(content="<Response></Response>", media_type="application/xml")
 
@@ -272,7 +305,13 @@ async def whatsapp_webhook(request: Request):
             )
             
             # Send message asking for village name/ID
-            reply_msg = "Welcome to Kisan Alert! 🌾 Please reply with your Village ID or Village Name to complete registration."
+            welcome_messages = {
+                "te": "కిసాన్ అలర్ట్కి స్వాగతం! 🌾 రిజిస్ట్రేషన్ పూర్తి చేయడానికి మీ గ్రామం పేరు లేదా ID పంపండి.",
+                "hi": "किसान अलर्ट में आपका स्वागत है! 🌾 पंजीकरण पूरा करने के लिए अपने गांव का नाम या ID भेजें।",
+                "en": "Welcome to Kisan Alert! 🌾 Please reply with your Village ID or Village Name to complete registration.",
+            }
+            farmer_language = farmer.get("language", "te") if farmer else "te"
+            reply_msg = welcome_messages.get(farmer_language, welcome_messages["en"])
             send_whatsapp_message(to_phone=from_phone_raw, body=reply_msg)
             return Response(content="<Response></Response>", media_type="application/xml")
 
@@ -287,12 +326,24 @@ async def whatsapp_webhook(request: Request):
             
             if not update_success:
                 logger.error(f"Failed to update farmer {farmer['id']} onboarding details.")
-                reply_msg = "Apologies, we encountered an error setting your village defaults. Please try sending your village name again."
+                village_error_messages = {
+                    "te": "క్షమించండి, మీ గ్రామ సమాచారం సెట్ చేయడంలో లోపం. దయచేసి మీ గ్రామం పేరు మళ్ళీ పంపండి.",
+                    "hi": "क्षमा करें, आपकी गाँव की जानकारी सेट करने में त्रुटि हुई। कृपया अपना गाँव का नाम फिर से भेजें।",
+                    "en": "Apologies, we encountered an error setting your village defaults. Please try sending your village name again.",
+                }
+                farmer_language = farmer.get("language", "te")
+                reply_msg = village_error_messages.get(farmer_language, village_error_messages["en"])
                 send_whatsapp_message(to_phone=from_phone_raw, body=reply_msg)
                 return Response(content="<Response></Response>", media_type="application/xml")
             
             # Confirm registration and proceed to advise
-            confirm_msg = f"Thank you! You are registered under village '{village_id}'. Fetching your local soil data and crop recommendations now..."
+            confirm_messages = {
+                "te": "ధన్యవాదాలు! మీరు '{village_id}' గ్రామం కింద నమోదయ్యారు. మీ స్థానిక నేల సమాచారం మరియు పంట సిఫార్సులు తీసుకుంటున్నాము...",
+                "hi": "धन्यवाद! आप '{village_id}' गाँव में पंजीकृत हो गए। आपकी स्थानीय मिट्टी और फसल सिफारिशें ला रहे हैं...",
+                "en": "Thank you! You are registered under village '{village_id}'. Fetching your local soil data and crop recommendations now...",
+            }
+            farmer_language = farmer.get("language", "te")
+            confirm_msg = confirm_messages.get(farmer_language, confirm_messages["en"]).format(village_id=village_id)
             send_whatsapp_message(to_phone=from_phone_raw, body=confirm_msg)
 
             # Proceed immediately to look up plot + soil + weather to return first advice
@@ -307,7 +358,13 @@ async def whatsapp_webhook(request: Request):
 
         else:
             logger.warning(f"Unrecognized onboarding stage '{onboarding_stage}' for farmer {farmer['id']}")
-            reply_msg = "Hello! We are configuring your advisory services. Please check back shortly."
+            unknown_stage_messages = {
+                "te": "నమస్కారం! మీ సలహా సేవలు కాన్ఫిగర్ చేస్తున్నాము. దయచేసి కొద్దిసేపట్లో మళ్ళీ చూడండి.",
+                "hi": "नमस्कार! हम आपकी सलाह सेवाएँ कॉन्फ़िगर कर रहे हैं। कृपया कुछ देर बाद पुनः जांचें।",
+                "en": "Hello! We are configuring your advisory services. Please check back shortly.",
+            }
+            farmer_language = farmer.get("language", "te")
+            reply_msg = unknown_stage_messages.get(farmer_language, unknown_stage_messages["en"])
             send_whatsapp_message(to_phone=from_phone_raw, body=reply_msg)
             return Response(content="<Response></Response>", media_type="application/xml")
 

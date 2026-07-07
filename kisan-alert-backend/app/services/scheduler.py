@@ -28,15 +28,15 @@ logger = logging.getLogger(__name__)
 # Keys must match the language codes stored on farmer documents.
 _ALERT_TEMPLATES: dict[str, str] = {
     "te": (
-        "⚠️ *వర్షపాత హెచ్చరిక*: వచ్చే 7 రోజుల్లో తక్కువ వర్షం ({rain_mm:.1f} mm) అంచనా. "
+        "⚠️ *వర్షపాత హెచ్చరిక*: వచ్చే 5 రోజుల్లో తక్కువ వర్షం ({rain_mm:.1f} mm) అంచనా. "
         "మీ *{crop}* పంటకు నీటిపారుదల చేయాలని పరిగణించండి."
     ),
     "hi": (
-        "⚠️ *वर्षा चेतावनी*: अगले 7 दिनों में कम बारिश ({rain_mm:.1f} mm) की संभावना है। "
+        "⚠️ *वर्षा चेतावनी*: अगले 5 दिनों में कम बारिश ({rain_mm:.1f} mm) की संभावना है। "
         "कृपया अपनी *{crop}* फसल की सिंचाई पर विचार करें।"
     ),
     "en": (
-        "⚠️ *Low Rain Alert*: Only {rain_mm:.1f} mm of rainfall expected in the next 7 days. "
+        "⚠️ *Low Rain Alert*: Only {rain_mm:.1f} mm of rainfall expected in the next 5 days. "
         "Consider irrigating your *{crop}* plot."
     ),
 }

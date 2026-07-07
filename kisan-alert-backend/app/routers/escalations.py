@@ -210,15 +210,22 @@ async def resolve_escalation_route(
         farmer_phone, _ = _resolve_farmer_for_plot(plot_id)
 
         if farmer_phone and farmer_phone != "unknown":
-            result = send_whatsapp_message(
-                to_phone = farmer_phone,
-                body     = body.final_message,
-            )
-            whatsapp_sent = result.get("status") not in {"failed", None}
-            logger.info(
-                "WhatsApp message sent to %s for escalation %s: status=%s",
-                farmer_phone, escalation_id, result.get("status"),
-            )
+            try:
+                result = send_whatsapp_message(
+                    to_phone = farmer_phone,
+                    body     = body.final_message,
+                )
+                whatsapp_sent = result.get("status") not in {"failed", None}
+                logger.info(
+                    "WhatsApp message sent to %s for escalation %s: status=%s",
+                    farmer_phone, escalation_id, result.get("status"),
+                )
+            except Exception as exc:
+                logger.error(
+                    "WhatsApp send failed for escalation %s to %s: %s",
+                    escalation_id, farmer_phone, exc, exc_info=True,
+                )
+                whatsapp_sent = False
         else:
             logger.warning(
                 "Could not resolve farmer phone for escalation %s — WhatsApp not sent.",

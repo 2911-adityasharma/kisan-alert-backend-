@@ -138,60 +138,69 @@ async def recommend_crop(request: CropRecommendationRequest):
     Full pipeline:
       Agromonitoring field snapshot + SoilService nutrients -> Gemini -> JSON recommendation
     """
+    try:
+        # ---- Step 1: Fetch live field conditions --------------------------------
+        logger.info("Fetching field snapshot for polygon: %s", request.poly_id or "default")
+        field_snapshot = await weather_service.get_field_snapshot(poly_id=request.poly_id)
 
-    # ---- Step 1: Fetch live field conditions --------------------------------
-    logger.info("Fetching field snapshot for polygon: %s", request.poly_id or "default")
-    field_snapshot = await weather_service.get_field_snapshot(poly_id=request.poly_id)
-
-    if "error" in field_snapshot:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Could not fetch field conditions: {field_snapshot['error']}",
-        )
-
-    # ---- Step 2: Resolve soil nutrients -------------------------------------
-    soil_nutrients: dict | None = None
-    if request.village_id or request.soil_data_ref:
-        # Build a minimal plot-like object from the request fields
-        plot = types.SimpleNamespace(
-            soil_data_ref = request.soil_data_ref,
-            village_id    = request.village_id,
-        )
-        soil_nutrients = soil_service.get_soil_for_plot(plot)
-        if soil_nutrients is None:
-            logger.warning(
-                "Could not resolve soil nutrients for village_id=%r, soil_data_ref=%r. "
-                "Proceeding without NPK data.",
-                request.village_id,
-                request.soil_data_ref,
+        if "error" in field_snapshot:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Could not fetch field conditions: {field_snapshot['error']}",
             )
 
-    # ---- Step 3: Call Gemini advisor ----------------------------------------
-    logger.info(
-        "Requesting Gemini recommendation (season=%s, lang=%s, prev_crops=%s)",
-        request.season,
-        request.language,
-        request.previous_crops,
-    )
-    recommendation = await advisor_service.get_crop_recommendation(
-        field_snapshot  = field_snapshot,
-        soil_nutrients  = soil_nutrients,
-        season          = request.season,
-        language        = request.language,
-        previous_crops  = request.previous_crops,
-        farm_size_acres = request.farm_size_acres,
-        farmer_notes    = request.farmer_notes,
-    )
+        # ---- Step 2: Resolve soil nutrients -------------------------------------
+        soil_nutrients: dict | None = None
+        if request.village_id or request.soil_data_ref:
+            # Build a minimal plot-like object from the request fields
+            plot = types.SimpleNamespace(
+                soil_data_ref = request.soil_data_ref,
+                village_id    = request.village_id,
+            )
+            soil_nutrients = soil_service.get_soil_for_plot(plot)
+            if soil_nutrients is None:
+                logger.warning(
+                    "Could not resolve soil nutrients for village_id=%r, soil_data_ref=%r. "
+                    "Proceeding without NPK data.",
+                    request.village_id,
+                    request.soil_data_ref,
+                )
 
-    if "error" in recommendation and "raw_text" not in recommendation:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Gemini advisor error: {recommendation['error']}",
+        # ---- Step 3: Call Gemini advisor ----------------------------------------
+        logger.info(
+            "Requesting Gemini recommendation (season=%s, lang=%s, prev_crops=%s)",
+            request.season,
+            request.language,
+            request.previous_crops,
+        )
+        recommendation = await advisor_service.get_crop_recommendation(
+            field_snapshot  = field_snapshot,
+            soil_nutrients  = soil_nutrients,
+            season          = request.season,
+            language        = request.language,
+            previous_crops  = request.previous_crops,
+            farm_size_acres = request.farm_size_acres,
+            farmer_notes    = request.farmer_notes,
         )
 
-    return CropRecommendationResponse(
-        success        = True,
-        field_snapshot = field_snapshot,
-        soil_nutrients = soil_nutrients,
-        recommendation = recommendation,
-    )
+        if "error" in recommendation and "raw_text" not in recommendation:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Gemini advisor error: {recommendation['error']}",
+            )
+
+        return CropRecommendationResponse(
+            success        = True,
+            field_snapshot = field_snapshot,
+            soil_nutrients = soil_nutrients,
+            recommendation = recommendation,
+        )
+
+    except HTTPException:
+        raise  # Re-raise FastAPI HTTP exceptions as-is
+    except Exception as exc:
+        logger.error("Unexpected error in recommend_crop: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while generating the crop recommendation.",
+        )

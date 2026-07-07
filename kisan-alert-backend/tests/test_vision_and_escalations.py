@@ -162,7 +162,7 @@ class TestWebhookMediaBranch(unittest.TestCase):
         resp = client.post("/webhook/whatsapp", data=payload)
         self.assertEqual(resp.status_code, 200)
         mock_send.assert_called_once()
-        self.assertIn("register", mock_send.call_args[1]["body"].lower())
+        self.assertIn("రిజిస్టర్", mock_send.call_args[1]["body"])  # Telugu "register" prompt
 
 
 # ─────────────────────────────────────────────────────────────────────────────
