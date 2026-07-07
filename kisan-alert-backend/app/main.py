@@ -1,9 +1,11 @@
 from contextlib import asynccontextmanager
+import os
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
-from app.routers import whatsapp_webhook, escalations, recommend
+from app.routers import whatsapp_webhook, escalations, recommend, auth, dashboard, chat, scan
 from app.services.scheduler import check_and_alert, create_scheduler
 
 
@@ -16,6 +18,9 @@ async def lifespan(app: FastAPI):
     on startup  : create and start the APScheduler (every 6 h drought alert).
     on shutdown : gracefully stop the scheduler so in-flight jobs can finish.
     """
+    # Ensure static directories exist
+    os.makedirs("static/uploads", exist_ok=True)
+    
     scheduler = create_scheduler()
     scheduler.start()
     app.state.scheduler = scheduler
@@ -42,10 +47,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Mount static files (uploads) ────────────────────────────────────────────────
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # ── Include API routers ────────────────────────────────────────────────────────
 app.include_router(whatsapp_webhook.router)
 app.include_router(escalations.router)
 app.include_router(recommend.router)
+app.include_router(auth.router)
+app.include_router(dashboard.router)
+app.include_router(chat.router)
+app.include_router(scan.router)
+
 
 
 # ── Health check ───────────────────────────────────────────────────────────────
