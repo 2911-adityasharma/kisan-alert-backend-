@@ -37,23 +37,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS: always include the production Vercel domain + any extra origins from
-# the ALLOWED_ORIGINS env var (comma-separated). Falls back to localhost only.
-_ALWAYS_ALLOWED = [
-    "https://krishibandhu-eight.vercel.app",  # production Vercel frontend
-]
-_raw_origins = os.environ.get("ALLOWED_ORIGINS", "")
-_extra_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()] if _raw_origins else []
-_dev_origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-]
-_allowed_origins = list(dict.fromkeys(_ALWAYS_ALLOWED + _extra_origins + _dev_origins))
-
+# CORS: use a regex to match ALL *.vercel.app subdomains (production + every
+# preview deployment URL) plus localhost for local dev.
+# allow_origin_regex takes priority over allow_origins in Starlette, so this
+# catches any new Vercel URL without needing a code change.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
