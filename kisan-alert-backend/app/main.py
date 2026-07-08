@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 import os
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.routers import whatsapp_webhook, escalations, recommend, auth, dashboard, chat, scan
@@ -20,6 +20,7 @@ async def lifespan(app: FastAPI):
     """
     # Ensure static directories exist
     os.makedirs("static/uploads", exist_ok=True)
+    os.makedirs("static/assets", exist_ok=True)
     
     scheduler = create_scheduler()
     scheduler.start()
@@ -58,8 +59,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Mount static files (uploads) ────────────────────────────────────────────────
+# Ensure static directories exist at import time so StaticFiles doesn't raise error during initialization
+os.makedirs("static/uploads", exist_ok=True)
+os.makedirs("static/assets", exist_ok=True)
+
+# ── Mount static files (uploads & assets) ────────────────────────────────────────
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
 
 # ── Include API routers ────────────────────────────────────────────────────────
 app.include_router(whatsapp_webhook.router)
@@ -103,3 +109,39 @@ async def trigger_alerts():
     """
     result = await check_and_alert()
     return result
+
+
+# ── Serve React SPA Entry point ─────────────────────────────────────────────────
+# These MUST be placed at the very end of main.py so they do not swallow REST APIs.
+@app.get("/", tags=["Frontend"])
+async def serve_index():
+    """Serves the index.html of the compiled React frontend."""
+    index_path = "static/index.html"
+    if not os.path.exists(index_path):
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Frontend build not found. Make sure Stage 1 built successfully."}
+        )
+    return FileResponse(index_path)
+
+
+@app.get("/{catchall:path}", tags=["Frontend"])
+async def serve_react_app(catchall: str):
+    """
+    Serves static files in the root folder (e.g., favicon.ico) or falls back
+    to index.html for React Router client-side routing on page refresh.
+    """
+    # If file exists in static folder, serve it directly
+    file_path = os.path.join("static", catchall)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return FileResponse(file_path)
+
+    # Fallback to index.html for client-side routing
+    index_path = "static/index.html"
+    if not os.path.exists(index_path):
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Frontend build not found. Make sure Stage 1 built successfully."}
+        )
+    return FileResponse(index_path)
+
