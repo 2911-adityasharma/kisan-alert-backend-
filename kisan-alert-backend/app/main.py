@@ -37,19 +37,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# WARNING: CORS origins are read from the ALLOWED_ORIGINS environment variable
-# (comma-separated list). In production on Railway, set this to your Vercel URL,
-# e.g. ALLOWED_ORIGINS=https://your-app.vercel.app
-# Falls back to permissive localhost origins for local development only.
+# CORS: always include the production Vercel domain + any extra origins from
+# the ALLOWED_ORIGINS env var (comma-separated). Falls back to localhost only.
+_ALWAYS_ALLOWED = [
+    "https://krishibandhu-eight.vercel.app",  # production Vercel frontend
+]
 _raw_origins = os.environ.get("ALLOWED_ORIGINS", "")
-if _raw_origins:
-    _allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
-else:
-    _allowed_origins = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-    ]
+_extra_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()] if _raw_origins else []
+_dev_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+]
+_allowed_origins = list(dict.fromkeys(_ALWAYS_ALLOWED + _extra_origins + _dev_origins))
 
 app.add_middleware(
     CORSMiddleware,

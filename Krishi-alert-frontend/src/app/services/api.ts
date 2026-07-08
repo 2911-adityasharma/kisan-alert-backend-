@@ -1,7 +1,12 @@
 // Kisan-Alert Frontend API Client
 // Interfaces and fetch wrappers for backend communication
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+// Supports both VITE_API_URL (Render guide) and VITE_API_BASE_URL — whichever is set on Vercel.
+// Falls back to localhost only for local development.
+export const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:8000";
 
 export interface Farmer {
   id: string;
