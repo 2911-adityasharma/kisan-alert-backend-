@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 from datetime import datetime, timezone
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -13,32 +14,39 @@ try:
     if not firebase_admin._apps:
         cred_path = settings.FIREBASE_CREDENTIALS_PATH
         project_id = settings.FIREBASE_PROJECT_ID
-        
+
         print("="*50)
         print("Project ID:", settings.FIREBASE_PROJECT_ID)
         print("Credential Path:", repr(settings.FIREBASE_CREDENTIALS_PATH))
-        print("Exists:", os.path.exists(settings.FIREBASE_CREDENTIALS_PATH))
         print("="*50)
 
+        # ── Railway / production: credentials supplied as JSON env var ─────────
+        sa_json_str = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON", "")
+        if sa_json_str:
+            logger.info("Initializing Firebase Admin with FIREBASE_SERVICE_ACCOUNT_JSON env var")
+            sa_dict = json.loads(sa_json_str)
+            cred = credentials.Certificate(sa_dict)
+            options = {"projectId": project_id} if project_id else {}
+            firebase_admin.initialize_app(cred, options)
 
-        if cred_path and os.path.exists(cred_path):
+        # ── Local dev: credentials loaded from file path ───────────────────────
+        elif cred_path and os.path.exists(cred_path):
             logger.info(f"Initializing Firebase Admin with credentials from {cred_path}")
             cred = credentials.Certificate(cred_path)
-            options = {}
-            if project_id:
-                options["projectId"] = project_id
+            options = {"projectId": project_id} if project_id else {}
             firebase_admin.initialize_app(cred, options)
+
+        # ── Fallback: Application Default Credentials (e.g. Cloud Run with IAM) ─
         else:
             logger.info("Initializing Firebase Admin with application default credentials")
-            options = {}
-            if project_id:
-                options["projectId"] = project_id
+            options = {"projectId": project_id} if project_id else {}
             firebase_admin.initialize_app(options=options)
-            
+
     db = firestore.client()
 except Exception as e:
     logger.error(f"Failed to initialize Firebase Admin SDK client: {e}", exc_info=True)
     db = None
+
 
 
 def get_farmer_by_phone(phone: str) -> dict | None:

@@ -1,7 +1,7 @@
 // Kisan-Alert Frontend API Client
 // Interfaces and fetch wrappers for backend communication
 
-export const API_BASE_URL = "http://localhost:8000";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 export interface Farmer {
   id: string;
